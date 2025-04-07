@@ -1,7 +1,7 @@
 const axios = require('axios');
 const pool = require('../config/db'); // pool de MySQL
 const express = require('express');
-const app = express();
+const routerAM = express.Router();
 
 const getData = async () => {
     try {
@@ -41,7 +41,7 @@ const getData = async () => {
 };
 
 // Endpoint to fetch all zones
-app.get('/zonas-riego', async (req, res) => {
+router.get('/zonas-riego', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM zonas_riego');
         res.json(rows);
@@ -52,7 +52,7 @@ app.get('/zonas-riego', async (req, res) => {
 });
 
 // Endpoint to fetch zones that are not functioning
-app.get('/zonas-riego/no-funcionando', async (req, res) => {
+router.get('/zonas-riego/no-funcionando', async (req, res) => {
     try {
         const [rows] = await pool.query(
             'SELECT * FROM zonas_riego WHERE estado IN ("mantenimiento", "descompuesto", "fuera_de_servicio")'
@@ -65,7 +65,7 @@ app.get('/zonas-riego/no-funcionando', async (req, res) => {
 });
 
 // Endpoint to fetch zones by state
-app.get('/zonas-riego/estado/:estado', async (req, res) => {
+router.get('/zonas-riego/estado/:estado', async (req, res) => {
     const { estado } = req.params;
     try {
         const [rows] = await pool.query('SELECT * FROM zonas_riego WHERE estado = ?', [estado]);
@@ -76,4 +76,4 @@ app.get('/zonas-riego/estado/:estado', async (req, res) => {
     }
 });
 
-module.exports = { getData };
+module.exports = { getData, routerAM };
