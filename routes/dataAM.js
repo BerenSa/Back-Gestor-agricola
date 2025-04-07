@@ -5,7 +5,7 @@ const routerAM = express.Router();
 
 const getData = async () => {
     try {
-        const apiResponse = await axios.get('https://moriahmkt.com/iotapp/am/');
+        const apiResponse = await axios.get('https://moriahmkt.com/iotapp/am');
         const data = apiResponse.data.zonas;
 
         const connection = await pool.getConnection();
