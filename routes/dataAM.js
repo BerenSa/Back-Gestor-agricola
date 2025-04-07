@@ -41,7 +41,7 @@ const getData = async () => {
 };
 
 // Endpoint to fetch all zones
-router.get('/zonas-riego', async (req, res) => {
+routerAM.get('/zonas-riego', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM zonas_riego');
         res.json(rows);
@@ -52,7 +52,7 @@ router.get('/zonas-riego', async (req, res) => {
 });
 
 // Endpoint to fetch zones that are not functioning
-router.get('/zonas-riego/no-funcionando', async (req, res) => {
+routerAM.get('/zonas-riego/no-funcionando', async (req, res) => {
     try {
         const [rows] = await pool.query(
             'SELECT * FROM zonas_riego WHERE estado IN ("mantenimiento", "descompuesto", "fuera_de_servicio")'
@@ -65,7 +65,7 @@ router.get('/zonas-riego/no-funcionando', async (req, res) => {
 });
 
 // Endpoint to fetch zones by state
-router.get('/zonas-riego/estado/:estado', async (req, res) => {
+routerAM.get('/zonas-riego/estado/:estado', async (req, res) => {
     const { estado } = req.params;
     try {
         const [rows] = await pool.query('SELECT * FROM zonas_riego WHERE estado = ?', [estado]);
