@@ -13,6 +13,20 @@ const getData = async () => {
             await connection.beginTransaction();
 
             for (const zona of data) {
+                // Format values
+                const formattedZona = {
+                    id: zona.id,
+                    sector: zona.sector,
+                    nombre: zona.nombre,
+                    tipo_riego: zona.tipo_riego,
+                    estado: zona.estado ? zona.estado.toLowerCase() : null,
+                    latitud: zona.latitud !== null ? parseFloat(zona.latitud) : null,
+                    longitud: zona.longitud !== null ? parseFloat(zona.longitud) : null,
+                    motivo: zona.motivo || null,
+                    fecha: zona.fecha || null,
+                    color: zona.color || null
+                };
+
                 const query = `
                     INSERT INTO zonas_riego (id, sector, nombre, tipo_riego, estado, latitud, longitud, motivo, fecha, color)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -22,8 +36,9 @@ const getData = async () => {
                     motivo = VALUES(motivo), fecha = VALUES(fecha), color = VALUES(color)
                 `;
                 const values = [
-                    zona.id, zona.sector, zona.nombre, zona.tipo_riego, zona.estado,
-                    zona.latitud, zona.longitud, zona.motivo, zona.fecha, zona.color
+                    formattedZona.id, formattedZona.sector, formattedZona.nombre, formattedZona.tipo_riego,
+                    formattedZona.estado, formattedZona.latitud, formattedZona.longitud,
+                    formattedZona.motivo, formattedZona.fecha, formattedZona.color
                 ];
                 await connection.query(query, values);
             }
@@ -61,6 +76,19 @@ routerAM.get('/zonas-riego/no-funcionando', async (req, res) => {
     } catch (error) {
         console.error("Error fetching non-functioning zones:", error);
         res.status(500).send("Error fetching non-functioning zones");
+    }
+});
+
+// Endpoint to fetch zones that are functioning
+routerAM.get('/zonas-riego/funcionando', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            'SELECT * FROM zonas_riego WHERE estado NOT IN ("mantenimiento", "descompuesto", "fuera_de_servicio")'
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error("Error fetching functioning zones:", error);
+        res.status(500).send("Error fetching functioning zones");
     }
 });
 
