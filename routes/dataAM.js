@@ -83,7 +83,7 @@ routerAM.get('/zonas-riego/no-funcionando', async (req, res) => {
 routerAM.get('/zonas-riego/funcionando', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            'SELECT * FROM zonas_riego WHERE estado NOT IN ("mantenimiento", "descompuesto", "fuera_de_servicio")'
+            'SELECT * FROM zonas_riego WHERE estado NOT IN ("mantenimiento", "descompuesto", "fuera_de_servicio", "apagado")'
         );
         res.json(rows);
     } catch (error) {

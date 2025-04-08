@@ -7,7 +7,7 @@ const router = express.Router();
 // Función que actualiza la base de datos usando la API externa
 async function updateData() {
   try {
-    const apiResponse = await axios.get('https://moriahmkt.com/iotapp/test/');
+    const apiResponse = await axios.get('http://moriahmkt.com/iotapp/updated/');
     const data = apiResponse.data;
 
     // Procesar datos globales
