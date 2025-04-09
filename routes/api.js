@@ -7,14 +7,76 @@ const router = express.Router();
 // Función que actualiza la base de datos usando la API externa
 async function updateData() {
   try {
+    console.log('Iniciando actualización:', new Date().toISOString());
     const apiResponse = await axios.get('http://moriahmkt.com/iotapp/updated/');
     const data = apiResponse.data;
+    
+    console.log('Datos recibidos de la API:', {
+      fecha_sensores: data.sensores.fecha,
+      total_parcelas: data.parcelas.length
+    });
+
+    // Procesar cada parcela primero
+    for (const parcela of data.parcelas) {
+      console.log(`Procesando parcela ${parcela.id}:`, {
+        nombre: parcela.nombre,
+        ultimo_riego: parcela.ultimo_riego
+      });
+
+      // Obtener datos actuales de la parcela
+      const [currentParcelaData] = await pool.query(
+        'SELECT ultimo_riego FROM parcelas WHERE id = ?', 
+        [Number(parcela.id)]
+      );
+
+      // Forzar actualización si los datos son diferentes
+      const shouldUpdate = !currentParcelaData.length || 
+                          currentParcelaData[0].ultimo_riego !== parcela.ultimo_riego;
+
+      if (shouldUpdate) {
+        console.log(`Actualizando parcela ${parcela.id} - Datos diferentes detectados`);
+        
+        const query = currentParcelaData.length === 0 
+          ? `INSERT INTO parcelas (id, nombre, ubicacion, responsable, tipo_cultivo, 
+                                 ultimo_riego, latitud, longitud, is_deleted)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, false)`
+          : `UPDATE parcelas 
+             SET nombre = ?, ubicacion = ?, responsable = ?, tipo_cultivo = ?,
+                 ultimo_riego = ?, latitud = ?, longitud = ?, is_deleted = false
+             WHERE id = ?`;
+
+        const params = currentParcelaData.length === 0
+          ? [Number(parcela.id), parcela.nombre, parcela.ubicacion, parcela.responsable,
+             parcela.tipo_cultivo, parcela.ultimo_riego, parcela.latitud, parcela.longitud]
+          : [parcela.nombre, parcela.ubicacion, parcela.responsable, parcela.tipo_cultivo,
+             parcela.ultimo_riego, parcela.latitud, parcela.longitud, Number(parcela.id)];
+
+        await pool.query(query, params);
+
+        // Forzar actualización de sensores
+        const insertSensorQuery = `
+          INSERT INTO historico_sensores_parcela
+            (parcela_id, humedad, temperatura, lluvia, sol)
+          VALUES (?, ?, ?, ?, ?)
+        `;
+        await pool.query(insertSensorQuery, [
+          Number(parcela.id),
+          parcela.sensor.humedad,
+          parcela.sensor.temperatura,
+          parcela.sensor.lluvia,
+          parcela.sensor.sol,
+        ]);
+
+        console.log(`Parcela ${parcela.id} actualizada con éxito`);
+      }
+    }
 
     // Procesar datos globales
     const [globalResult] = await pool.query(
       'SELECT * FROM historico_sensores_globales ORDER BY fecha_registro DESC LIMIT 1'
     );
     const lastGlobal = globalResult[0];
+    console.log('Último registro global en BD:', lastGlobal?.fecha_registro);
 
     if (
       !lastGlobal ||
@@ -36,75 +98,6 @@ async function updateData() {
       ]);
     }
 
-    // Procesar cada parcela
-    // Convertir IDs a número
-    const apiParcelasIds = data.parcelas.map(p => Number(p.id));
-    console.log("API Parcelas IDs:", apiParcelasIds);
-
-    for (const parcela of data.parcelas) {
-      const [result] = await pool.query('SELECT * FROM parcelas WHERE id = ?', [Number(parcela.id)]);
-      if (result.length === 0) {
-        const insertParcelaQuery = `
-          INSERT INTO parcelas (id, nombre, ubicacion, responsable, tipo_cultivo, ultimo_riego, latitud, longitud, is_deleted)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, false)
-        `;
-        await pool.query(insertParcelaQuery, [
-          Number(parcela.id),
-          parcela.nombre,
-          parcela.ubicacion,
-          parcela.responsable,
-          parcela.tipo_cultivo,
-          parcela.ultimo_riego,
-          parcela.latitud,
-          parcela.longitud,
-        ]);
-      } else {
-        const updateParcelaQuery = `
-          UPDATE parcelas
-          SET nombre = ?, ubicacion = ?, responsable = ?, tipo_cultivo = ?, ultimo_riego = ?,
-              latitud = ?, longitud = ?, is_deleted = false
-          WHERE id = ?
-        `;
-        await pool.query(updateParcelaQuery, [
-          parcela.nombre,
-          parcela.ubicacion,
-          parcela.responsable,
-          parcela.tipo_cultivo,
-          parcela.ultimo_riego,
-          parcela.latitud,
-          parcela.longitud,
-          Number(parcela.id),
-        ]);
-      }
-
-      const [sensorResult] = await pool.query(
-        'SELECT * FROM historico_sensores_parcela WHERE parcela_id = ? ORDER BY fecha_registro DESC LIMIT 1',
-        [Number(parcela.id)]
-      );
-      const lastSensor = sensorResult[0];
-
-      if (
-        !lastSensor ||
-        lastSensor.humedad != parcela.sensor.humedad ||
-        lastSensor.temperatura != parcela.sensor.temperatura ||
-        lastSensor.lluvia != parcela.sensor.lluvia ||
-        lastSensor.sol != parcela.sensor.sol
-      ) {
-        const insertSensorQuery = `
-          INSERT INTO historico_sensores_parcela
-            (parcela_id, humedad, temperatura, lluvia, sol)
-          VALUES (?, ?, ?, ?, ?)
-        `;
-        await pool.query(insertSensorQuery, [
-          Number(parcela.id),
-          parcela.sensor.humedad,
-          parcela.sensor.temperatura,
-          parcela.sensor.lluvia,
-          parcela.sensor.sol,
-        ]);
-      }
-    }
-
     // Marcar parcelas eliminadas: si en la BD existen parcelas que no están en la API, se actualiza is_deleted a 1
     const [dbParcelasResult] = await pool.query('SELECT id FROM parcelas WHERE is_deleted = false');
     const dbParcelasIds = dbParcelasResult.map(row => Number(row.id));
@@ -118,8 +111,26 @@ async function updateData() {
     }
 
     console.log("Actualización completada");
+
+    // Agregar el intervalo de actualización cuando se inicia el router
+    if (!global.updateInterval) {
+      global.updateInterval = setInterval(async () => {
+        try {
+          await updateData();
+          console.log('Actualización automática completada');
+        } catch (error) {
+          console.error('Error en actualización automática:', error);
+        }
+      }, 5000); // 5 segundos
+    }
+
+    return true; // Indicar que la actualización fue exitosa
   } catch (err) {
-    console.error("Error en updateData:", err);
+    console.error("Error detallado en updateData:", {
+      message: err.message,
+      stack: err.stack,
+      response: err.response?.data
+    });
     throw err;
   }
 }
@@ -127,10 +138,19 @@ async function updateData() {
 // Endpoint para actualizar la BD manualmente
 router.get('/update-data', async (req, res) => {
   try {
-    await updateData();
-    res.json({ status: 'Base de datos actualizada correctamente' });
+    const result = await updateData();
+    res.json({ 
+      status: 'Base de datos actualizada correctamente',
+      timestamp: new Date().toISOString(),
+      success: result
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en endpoint update-data:', err);
+    res.status(500).json({ 
+      error: err.message,
+      timestamp: new Date().toISOString(),
+      details: err.response?.data || 'No additional details'
+    });
   }
 });
 
@@ -184,6 +204,27 @@ router.get('/dump', async (req, res) => {
       parcelas,
       historico,
       globales
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Agregar un endpoint para verificar el estado de las actualizaciones
+router.get('/update-status', async (req, res) => {
+  try {
+    const [lastGlobal] = await pool.query(
+      'SELECT fecha_registro FROM historico_sensores_globales ORDER BY fecha_registro DESC LIMIT 1'
+    );
+    const [lastParcela] = await pool.query(
+      'SELECT fecha_registro FROM historico_sensores_parcela ORDER BY fecha_registro DESC LIMIT 1'
+    );
+    
+    res.json({
+      lastGlobalUpdate: lastGlobal[0]?.fecha_registro,
+      lastParcelaUpdate: lastParcela[0]?.fecha_registro,
+      updateInterval: !!global.updateInterval,
+      currentTime: new Date().toISOString()
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

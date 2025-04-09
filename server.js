@@ -16,11 +16,7 @@ app.use(express.json());
 app.use('/api', router);
 app.use('/api', routerAM);
 
-// Llamada inicial y luego cada 30 segundos para actualizar la BD
-// updateData();
-// setInterval(updateData, 30 * 1000);
 
-// Llamada inicial y luego cada 30 segundos para actualizar zonas de riego
 getData();
 setInterval(getData, 30 * 1000);
 
