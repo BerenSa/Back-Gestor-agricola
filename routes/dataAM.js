@@ -70,7 +70,7 @@ routerAM.get('/zonas-riego', async (req, res) => {
 routerAM.get('/zonas-riego/no-funcionando', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            'SELECT * FROM zonas_riego WHERE estado IN ("mantenimiento", "descompuesto", "fuera_de_servicio")'
+            'SELECT * FROM zonas_riego WHERE LOWER(estado) IN ("mantenimiento", "descompuesto", "fuera_de_servicio", "apagado")'
         );
         res.json(rows);
     } catch (error) {
@@ -83,7 +83,7 @@ routerAM.get('/zonas-riego/no-funcionando', async (req, res) => {
 routerAM.get('/zonas-riego/funcionando', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            'SELECT * FROM zonas_riego WHERE estado NOT IN ("mantenimiento", "descompuesto", "fuera_de_servicio", "apagado")'
+            'SELECT * FROM zonas_riego WHERE LOWER(estado) NOT IN ("mantenimiento", "descompuesto", "fuera_de_servicio", "apagado")'
         );
         res.json(rows);
     } catch (error) {
@@ -94,9 +94,10 @@ routerAM.get('/zonas-riego/funcionando', async (req, res) => {
 
 // Endpoint to fetch zones by state
 routerAM.get('/zonas-riego/estado/:estado', async (req, res) => {
-    const { estado } = req.params;
+    let { estado } = req.params;
+    estado = estado.toLowerCase(); // Ensure "estado" is in lowercase
     try {
-        const [rows] = await pool.query('SELECT * FROM zonas_riego WHERE estado = ?', [estado]);
+        const [rows] = await pool.query('SELECT * FROM zonas_riego WHERE LOWER(estado) = ?', [estado]);
         res.json(rows);
     } catch (error) {
         console.error("Error fetching zones by state:", error);
